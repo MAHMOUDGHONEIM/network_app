@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv ="X-UA-compatible"content="ie=edge">
+    <link rel ="stylesheet"href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel ="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <link rel="stylesheet" href="http://localhost:6040/4.4/esri/css/main.css">
+    <script src="http://localhost:6040/4.4/init.js"></script>
+    <title>node_js_app</title>
+    <style>
+        #mapview {
+            padding: 0px;
+            margin: 0px;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            right: 0;
+            left: 0;
+
+        }
+        #toggleLayers {
+            position: relative;
+            font-size: 20px;
+            left: 10px;
+            top: 6px;
+
+        }
+        #toggleAttribute {
+            position: relative;
+            font-size: 20px;
+            left: 16px;
+            top: 6px;
+
+        }
+        #lstservices {
+            position: relative;
+            font-size: 20px;
+            left: 2500px;
+            top: 6px;
+        }
+        #attributeTabe {
+            font-family:  Arial, Helvetica, sans-serif;
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 10px;
+
+        }
+        #attributeTabe td,
+        #attributeTabe th {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        #attributeTabe tr:nth-child(even) {
+            border-color:rebeccapurple;
+        }
+        #attributeTabe tr:hover {
+            background-color: cornsilk;
+        }
+        #attributeTabe th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            text-align: center;
+            background-color:white;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id= "mapview" >map</div>
+    <select id ="lstservices"></select>
+    <button id="toggleLayers">الطبقات</button>
+    <button id="toggleAttribute"> جدول البيانات الوصفية</button>
+    <table>
+        <tr>
+            <td valign="top">
+                <div id="attributelayer" style="overflow: auto;; width: 300px;height: 700px; display: none;"title="الطبقات"></div>
+    
+            </td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                
+                <div id="attributeTabe" style="overflow: auto; ; width: 1000px;height: 800px; display: none;"title="جدول البيانات الوصفية"></div>
+            </td>
+        </tr>
+    </table>
+        <script>
+    
+        let map1;
+        let mapview;
+        let selectService;
+        let Request;
+        require(["esri/Map", "esri/views/MapView","esri/Request","esri/layers/MapImageLayer","esri/widgets/Legend","esri/widgets/Expand","esri/widgets/ScaleBar","dojo/domReady!"],
+        function(Map, MapView, esriRequest,MapImageLayer ,Legend ,Expand ,ScaleBar){
+        Request= esriRequest 
+        map1= new Map({
+            basemap:"topo"
+            
+            
+         });
+         mapview = new MapView({
+             container:"mapview",
+             map:map1,
+             center:[43.898406028732936,26.390331962091047],
+            zoom : 16  
+         });
+         let legend= new Legend({
+         view:mapview,
+         container: document.createElement("div")
+ 
+         });
+         let expand = new Expand({
+             view:mapview,
+             content: legend.container,
+             expandIconClass: "esri-icon-layer-list"
+         });
+
+          mapview.ui.add(expand, "bottom-right");
+          let scalebar = new ScaleBar({
+              view:mapview,
+              unit: "dual"
+          });
+          mapview.ui.add(scalebar, "bottom-left");
+
+
+         let URL = "http://localhost:6080/arcgis/rest/services?f=json"; 
+         let requestOptions= {
+             responseType: "json"
+         };
+         Request(URL, requestOptions).then(function(response) {
+             let result = response.data;
+             let lstservice= document.getElementById("lstservices");
+
+             lstservice.addEventListener("change",function() {
+              selectService= lstservice.options[lstservice.selectedIndex].textContent;
+             let layer = new MapImageLayer({
+                 url: "http://localhost:6080/arcgis/rest/services/" + selectService + "/MapServer"
+             });
+             map1.removeAll();
+             map1.add(layer);
+             layer.then(function() {
+                 mapview.goTo(layer.fullExtent);
+                 //populate my layers
+                 let attributelayers = document.getElementById("attributelayer");
+                 attributelayers.innerHTML  ="";
+                 for (let i = 0; i <layer.sublayers.length; i++) {
+                     let sublayer = layer.sublayers.items[i];
+                     let input = document.createElement("input");
+                     let br= document.createElement("br");
+                     input.type = "checkbox";
+                     input.value = sublayer.id;
+                     input.checked = sublayer.visible;
+                     let btn = document.createElement("button");
+                     btn.textContent="table";
+                     btn.layerid= sublayer.id;
+                     btn.addEventListener("click",PopulateAttributeTable)
+                     input.addEventListener("click", function(e) {
+                         let clikedLayer = layer.findSublayerById(Number(e.target.value))
+                         clikedLayer.visible = e.target.checked
+                     });
+                     let lbl = document.createElement("label");
+                     lbl.textContent = sublayer.title;
+                     attributelayers.appendChild(input);
+                     attributelayers.appendChild(lbl);
+                     attributelayers.appendChild(btn);
+                     attributelayers.appendChild(br);
+                 }
+             });
+             
+
+             }) 
+             for (let i = 0; i < result.services.length; i++) {
+                 let options= document.createElement("option");
+                 options.textContent = result.services[i].name;
+                 lstservice.appendChild(options);
+             }
+         });  
+         });
+
+         function PopulateAttributeTable(e) {
+            let attribute = document.getElementById("attributeTabe");
+             attribute.innerHTML = "";
+             let queryUrl = "http://localhost:6080/arcgis/rest/services/" + selectService + "/MapServer/" + e.target.layerid + "/query";
+             let requestOptions = {
+                 responseType: "json",
+                 query: {
+                     f: "json",
+                     returnCountOnly: false,
+                     outFields: "*",
+                     where : "1=1"
+                 }
+             };
+             Request(queryUrl, requestOptions).then(response => {
+                 let table = document.createElement("table");
+                 table. border= 2;
+                 let header = document.createElement("tr");
+                 table.appendChild(header);
+                 for (let i = 0; i < response.data.fields.length; i++) {
+                     let column = document.createElement("th");
+                     column.textContent = response.data.fields[i].alias;
+                     header.appendChild(column);
+                     
+                 }
+                 for (let i = 0; i <response.data.features.length; i++) {
+                         let feature = response.data.features[i];
+                         let row = document.createElement("tr");
+                         table.appendChild(row);
+                         for (let j = 0; j <response.data.fields.length; j++) {
+                             let filed = response.data.fields[j];
+                             let colum = document.createElement("td");
+                             colum.textContent = feature.attributes[filed.name];
+                             row.appendChild(colum); 
+                 }
+
+ for (let i = 0; i <response.data.features.length; i++) {
+                         let feature = response.data.features[i];
+                         let row = document.createElement("tr");
+                         table.appendChild(row);
+                         for (let j = 0; j <response.data.fields.length; j++) {
+                             let filed = response.data.fields[j];
+                             let colum = document.createElement("td");
+                             colum.textContent = feature.attributes[filed.name];
+                             row.appendChild(colum);
+                         }
+                     }
+                 }
+
+                 attribute.appendChild(table);
+             });
+         };
+$(function() {
+    $("#attributelayer").dialog({
+        autoOpen: false,
+        show: {
+            effect: "blind",
+            duration:1000
+            },
+            hide: {
+                effect: "explode",
+                duration:1000
+        }
+    });
+    $("#toggleLayers").on("click",function () {
+        $("#attributelayer").dialog("open");
+});
+         
+});
+
+$(function() {
+    $("#attributeTabe").dialog({
+        autoOpen: false,
+        show: {
+            effect: "blind",
+            duration:1000
+            },
+            hide: {
+                effect: "explode",
+                duration:1000
+        }
+    });
+    $("#toggleAttribute").on("click",function () {
+        $("#attributeTabe").dialog("open");
+});
+         
+});
+         
+    </script>
+    
+</body>
+</html>
